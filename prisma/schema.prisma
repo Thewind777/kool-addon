@@ -1,0 +1,82 @@
+// Prisma Schema for Group Order MVP
+// Uses integer cents for all monetary values to avoid floating-point errors
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite doesn't support enums natively, use String with validation
+model User {
+  id                String              @id @default(uuid())
+  name              String
+  email             String?             @unique
+  walletBalanceCents BigInt             @default(0)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  hostedOrders      GroupOrder[]        @relation("HostedOrders")
+  orderItems        GroupOrderItem[]    @relation("UserItems")
+  sentTransactions  WalletTransaction[] @relation("SentTransactions")
+  receivedTransactions WalletTransaction[] @relation("ReceivedTransactions")
+
+  @@index([email])
+}
+
+model GroupOrder {
+  id               String            @id @default(uuid())
+  shareCode        String            @unique
+  hostUserId       String
+  status           String            @default("OPEN") // OPEN, LOCKED, PAID, CANCELLED
+  paymentMode      String            @default("HOST_PAYS_ALL") // HOST_PAYS_ALL, SPLIT_WALLETS
+  totalAmountCents BigInt            @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  host             User              @relation("HostedOrders", fields: [hostUserId], references: [id])
+  items            GroupOrderItem[]
+
+  @@index([shareCode])
+  @@index([hostUserId])
+  @@index([status])
+}
+
+model GroupOrderItem {
+  id             String        @id @default(uuid())
+  groupOrderId   String
+  userId         String?
+  guestName      String?
+  itemId         String
+  itemName       String
+  priceCents     BigInt
+  quantity       Int           @default(1)
+  createdAt      DateTime      @default(now())
+
+  groupOrder     GroupOrder    @relation(fields: [groupOrderId], references: [id], onDelete: Cascade)
+  user           User?         @relation("UserItems", fields: [userId], references: [id])
+
+  @@index([groupOrderId])
+  @@index([userId])
+}
+
+model WalletTransaction {
+  id            String    @id @default(uuid())
+  senderId      String
+  receiverId    String
+  amountCents   BigInt
+  type          String    // P2P_QR_TRANSFER, GROUP_ORDER_PAYMENT
+  referenceId   String?
+  createdAt     DateTime  @default(now())
+
+  sender        User      @relation("SentTransactions", fields: [senderId], references: [id])
+  receiver      User      @relation("ReceivedTransactions", fields: [receiverId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([referenceId])
+  @@index([type])
+}
