@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
 
 export const socketEvents = {
   ITEM_ADDED: 'ITEM_ADDED',
@@ -12,9 +11,10 @@ export const socketEvents = {
   USER_LEFT: 'USER_LEFT',
 } as const;
 
-interface UseSocketOptions {
+interface UsePollingOptions {
   shareCode: string;
-  userId: string;
+  enabled?: boolean;
+  intervalMs?: number;
   onItemAdded?: (item: any) => void;
   onItemRemoved?: (data: { itemId: string }) => void;
   onCartLocked?: (data: { breakdown: any }) => void;
@@ -23,77 +23,76 @@ interface UseSocketOptions {
   onUserLeft?: (data: any) => void;
 }
 
-export function useGroupOrderSocket(options: UseSocketOptions) {
-  const { shareCode, userId, onItemAdded, onItemRemoved, onCartLocked, onCheckoutCompleted, onUserJoined, onUserLeft } = options;
-  const socketRef = useRef<Socket | null>(null);
+export function useGroupOrderSocket(options: UsePollingOptions) {
+  const { shareCode, enabled = true, intervalMs = 2000, onItemAdded, onItemRemoved, onCartLocked, onCheckoutCompleted, onUserJoined, onUserLeft } = options;
+  const [lastItemCount, setLastItemCount] = useState(0);
+  const [lastStatus, setLastStatus] = useState<string>('');
   const [connected, setConnected] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const poll = useCallback(async () => {
+    if (!enabled || !shareCode) return;
+
+    try {
+      const response = await fetch(`/api/group-orders/${shareCode}`);
+      if (!response.ok) {
+        setConnected(false);
+        return;
+      }
+
+      const data = await response.json();
+      if (!data.success || !data.data) {
+        setConnected(false);
+        return;
+      }
+
+      setConnected(true);
+      const { items, status, breakdown } = data.data;
+
+      // Detect new items
+      if (items.length > lastItemCount) {
+        const newItems = items.slice(lastItemCount);
+        newItems.forEach((item: any) => onItemAdded?.(item));
+      }
+      setLastItemCount(items.length);
+
+      // Detect status changes
+      if (status !== lastStatus) {
+        if (status === 'LOCKED' && breakdown) {
+          onCartLocked?.({ breakdown });
+        }
+        if (status === 'PAID') {
+          onCheckoutCompleted?.({ transactions: [] });
+        }
+        setLastStatus(status);
+      }
+    } catch (err) {
+      console.error('Polling error:', err);
+      setConnected(false);
+    }
+  }, [shareCode, enabled, lastItemCount, lastStatus, onItemAdded, onItemRemoved, onCartLocked, onCheckoutCompleted]);
 
   useEffect(() => {
-    if (!shareCode || !userId) return;
+    if (!enabled) return;
 
-    const socket = io(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', {
-      transports: ['websocket', 'polling'],
-      autoConnect: true,
-    });
+    // Initial fetch
+    poll();
 
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      console.log('Socket connected');
-      setConnected(true);
-      socket.emit('join-room', { shareCode, userId });
-    });
-
-    socket.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setConnected(false);
-    });
-
-    socket.on(socketEvents.ITEM_ADDED, (item) => {
-      onItemAdded?.(item);
-    });
-
-    socket.on(socketEvents.ITEM_REMOVED, ({ itemId }) => {
-      onItemRemoved?.(itemId);
-    });
-
-    socket.on(socketEvents.CART_LOCKED, ({ breakdown }) => {
-      onCartLocked?.(breakdown);
-    });
-
-    socket.on(socketEvents.CHECKOUT_COMPLETED, ({ transactions }) => {
-      onCheckoutCompleted?.(transactions);
-    });
-
-    socket.on('user-joined', (data) => {
-      onUserJoined?.(data);
-    });
-
-    socket.on('user-left', (data) => {
-      onUserLeft?.(data);
-    });
+    // Set up interval
+    intervalRef.current = setInterval(poll, intervalMs);
 
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
-  }, [shareCode, userId, onItemAdded, onItemRemoved, onCartLocked, onCheckoutCompleted, onUserJoined, onUserLeft]);
+  }, [enabled, poll, intervalMs]);
 
-  const emitItemAdded = useCallback((item: any) => {
-    socketRef.current?.emit('item-added', { shareCode, item });
-  }, [shareCode]);
-
-  const emitItemRemoved = useCallback((itemId: string) => {
-    socketRef.current?.emit('item-removed', { shareCode, itemId });
-  }, [shareCode]);
-
-  const emitCartLocked = useCallback((breakdown: any) => {
-    socketRef.current?.emit('cart-locked', { shareCode, breakdown });
-  }, [shareCode]);
-
-  const emitCheckoutCompleted = useCallback((transactions: any) => {
-    socketRef.current?.emit('checkout-completed', { shareCode, transactions });
-  }, [shareCode]);
+  // These are no-ops for polling-based approach (handled by API calls)
+  const emitItemAdded = useCallback(() => {}, []);
+  const emitItemRemoved = useCallback(() => {}, []);
+  const emitCartLocked = useCallback(() => {}, []);
+  const emitCheckoutCompleted = useCallback(() => {}, []);
 
   return {
     connected,

@@ -6,11 +6,10 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// SQLite doesn't support enums natively, use String with validation
 model User {
   id                String              @id @default(uuid())
   name              String
