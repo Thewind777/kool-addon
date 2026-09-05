@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error('Create group order error:', error);
+    const msg = error instanceof Error ? error.message : 'Failed to create group order';
     return NextResponse.json(
-      { success: false, message: 'Failed to create group order' },
+      { success: false, message: msg },
       { status: 500 }
     );
   }

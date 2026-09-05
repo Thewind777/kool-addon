@@ -64,8 +64,9 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error('Generate QR error:', error);
+    const msg = error instanceof Error ? error.message : 'Failed to generate QR code';
     return NextResponse.json(
-      { success: false, message: 'Failed to generate QR code' },
+      { success: false, message: msg },
       { status: 500 }
     );
   }

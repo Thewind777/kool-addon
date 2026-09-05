@@ -30,8 +30,9 @@ export async function GET(
     });
   } catch (error) {
     console.error('Get group order error:', error);
+    const msg = error instanceof Error ? error.message : 'Failed to get group order';
     return NextResponse.json(
-      { success: false, message: 'Failed to get group order' },
+      { success: false, message: msg },
       { status: 500 }
     );
   }
