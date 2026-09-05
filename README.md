@@ -1,6 +1,6 @@
 # Group Order MVP
 
-A mobile-first web application for shared group ordering with real-time cart synchronization and QR code-based peer-to-peer wallet transfers.
+A mobile-first web app for shared group ordering with real-time cart sync and QR code-based peer-to-peer wallet transfers.
 
 ## Features
 
