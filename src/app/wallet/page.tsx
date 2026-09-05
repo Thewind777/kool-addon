@@ -65,6 +65,10 @@ export default function WalletPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerRef = useRef<HTMLDivElement>(null);
 
+  // Transfer confirmation modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingTransfer, setPendingTransfer] = useState<{ senderId: string; token: string; receiverName: string; amount: number | null } | null>(null);
+
   // Fetch user balance and transactions
   const fetchUserData = async () => {
     if (!selectedUser) return;
@@ -137,6 +141,14 @@ export default function WalletPage() {
     }
 
     try {
+      // Request camera permission first
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      } catch (permErr) {
+        alert('Camera permission denied. Please allow camera access in your browser settings, or use manual token input.');
+        return;
+      }
+
       const scanner = new Html5Qrcode('qr-scanner');
       
       await scanner.start(
@@ -175,20 +187,41 @@ export default function WalletPage() {
     setScanning(false);
   };
 
-  // Handle QR Scan Result - Transfer
+  // Handle QR Scan Result - Show Confirmation Modal
   const handleTransferFromQR = async () => {
     if (!scanResult || !selectedUser) return;
 
+    // Parse token to get receiver info and amount
+    try {
+      // The token is a JWT, we need to decode it to show confirmation
+      const payload = JSON.parse(atob(scanResult.split('.')[1]));
+      const receiverName = payload.userName || 'Unknown';
+      const amount = payload.requestedAmountCents || null;
+      
+      setPendingTransfer({ senderId: selectedUser, token: scanResult, receiverName, amount });
+      setShowConfirmModal(true);
+    } catch (err) {
+      console.error('Failed to parse token:', err);
+      setPendingTransfer({ senderId: selectedUser, token: scanResult, receiverName: 'Unknown', amount: null });
+      setShowConfirmModal(true);
+    }
+  };
+
+  // Confirm Transfer
+  const confirmTransfer = async () => {
+    if (!pendingTransfer) return;
+
     setTransferring(true);
     setTransferResult(null);
+    setShowConfirmModal(false);
 
     try {
       const response = await fetch('/api/wallet/qr/transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          senderId: selectedUser,
-          token: scanResult,
+          senderId: pendingTransfer.senderId,
+          token: pendingTransfer.token,
         }),
       });
 
@@ -204,6 +237,7 @@ export default function WalletPage() {
       setTransferResult({ success: false, message: 'Network error' });
     } finally {
       setTransferring(false);
+      setPendingTransfer(null);
     }
   };
 
@@ -466,6 +500,70 @@ export default function WalletPage() {
                 </div>
               </div>
             </div>
+
+            {/* Transfer Confirmation Modal */}
+            {showConfirmModal && pendingTransfer && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in">
+                <div className="bg-white rounded-2xl shadow-xl max-w-md w-full animate-slide-up">
+                  <div className="p-6 space-y-4">
+                    <div className="text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-xl font-semibold text-slate-900">Confirm Transfer</h3>
+                      <p className="text-slate-500">Are you sure you want to receive this payment?</p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500">From</span>
+                        <span className="font-medium text-slate-900">{pendingTransfer.receiverName}</span>
+                      </div>
+                      {pendingTransfer.amount !== null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Amount</span>
+                          <span className="font-bold text-green-600 text-lg">+{formatCents(pendingTransfer.amount)}</span>
+                        </div>
+                      )}
+                      {pendingTransfer.amount === null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-500">Amount</span>
+                          <span className="font-medium text-slate-700">As requested in QR</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setShowConfirmModal(false); setPendingTransfer(null); }}
+                        className="flex-1 py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmTransfer}
+                        disabled={transferring}
+                        className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 focus:ring-2 focus:ring-green-500/30 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {transferring ? (
+                          <>
+                            <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Processing...
+                          </>
+                        ) : (
+                          'Confirm & Receive'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Transaction History */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
