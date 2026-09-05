@@ -134,6 +134,9 @@ export default function WalletPage() {
         fps: 10,
         qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true,
+        },
       },
       false
     );
@@ -148,7 +151,7 @@ export default function WalletPage() {
         await scanner.clear();
       },
       (error: string) => {
-        // Ignore scan errors
+        // Ignore scan errors - they're frequent and noisy
       }
     );
 

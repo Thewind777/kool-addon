@@ -14,6 +14,7 @@ interface GroupOrderItem {
   itemName: string;
   priceCents: number;
   quantity: number;
+  notes?: string;
   createdAt: string;
   user?: { id: string; name: string } | null;
 }
@@ -42,6 +43,14 @@ const USERS = [
   { id: 'user-feras-001', name: 'Feras' },
   { id: 'user-ahmed-002', name: 'Ahmed' },
   { id: 'user-sarah-003', name: 'Sarah' },
+];
+
+// Predefined menu items
+const MENU_ITEMS = [
+  { id: 'burger', name: 'Burger', priceCents: 1500, emoji: '🍔' },
+  { id: 'pizza', name: 'Pizza', priceCents: 2000, emoji: '🍕' },
+  { id: 'kebab', name: 'Kebab', priceCents: 1800, emoji: '🥙' },
+  { id: 'drink', name: 'Drink', priceCents: 500, emoji: '🥤' },
 ];
 
 export default function GroupOrderPage() {
@@ -348,17 +357,35 @@ export default function GroupOrderPage() {
 
         {/* Total */}
         <div className="card p-4 mb-4 bg-gray-50">
-          <div className="flex justify-between items-baseline">
-            <span className="text-lg font-medium text-gray-700">Total</span>
-            <span className="text-2xl font-bold text-gray-900">
-              {formatCents(groupOrder.totalAmountCents)}
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            {groupOrder.paymentMode === 'HOST_PAYS_ALL' 
-              ? `Host (${groupOrder.host.name}) pays entire amount`
-              : 'Each user pays their share'}
-          </p>
+          {groupOrder.paymentMode === 'SPLIT_WALLETS' && breakdown.length > 0 ? (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-gray-700">Per User:</h4>
+              {breakdown.map((p) => (
+                <div key={p.userId || p.name} className="flex justify-between text-sm">
+                  <span className="text-gray-700">{p.name}</span>
+                  <span className="font-semibold text-gray-900">{formatCents(p.totalCents)}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-200 pt-2 flex justify-between">
+                <span className="text-lg font-medium text-gray-700">Total</span>
+                <span className="text-2xl font-bold text-gray-900">{formatCents(groupOrder.totalAmountCents)}</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-baseline">
+                <span className="text-lg font-medium text-gray-700">Total</span>
+                <span className="text-2xl font-bold text-gray-900">
+                  {formatCents(groupOrder.totalAmountCents)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {groupOrder.paymentMode === 'HOST_PAYS_ALL' 
+                  ? `Host (${groupOrder.host.name}) pays entire amount`
+                  : 'Each user pays their share'}
+              </p>
+            </>
+          )}
         </div>
 
         {/* Checkout Section */}
@@ -421,72 +448,123 @@ function AddItemForm({
   guestName: string;
   selectedUser: string;
 }) {
-  const [itemName, setItemName] = useState('');
-  const [price, setPrice] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [selectedItems, setSelectedItems] = useState<Record<string, { quantity: number; notes: string }>>({});
   const [adding, setAdding] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!itemName || !price) return;
+  const toggleItem = (menuItem: typeof MENU_ITEMS[0]) => {
+    setSelectedItems(prev => {
+      const next = { ...prev };
+      if (next[menuItem.id]) {
+        if (next[menuItem.id].quantity > 1) {
+          next[menuItem.id].quantity -= 1;
+        } else {
+          delete next[menuItem.id];
+        }
+      } else {
+        next[menuItem.id] = { quantity: 1, notes: '' };
+      }
+      return next;
+    });
+  };
 
-    const priceCents = Math.round(parseFloat(price) * 100);
-    if (priceCents <= 0) return;
+  const updateQuantity = (itemId: string, delta: number) => {
+    setSelectedItems(prev => {
+      const next = { ...prev };
+      if (!next[itemId]) return next;
+      next[itemId].quantity = Math.max(1, next[itemId].quantity + delta);
+      return next;
+    });
+  };
+
+  const updateNotes = (itemId: string, notes: string) => {
+    setSelectedItems(prev => {
+      const next = { ...prev };
+      if (next[itemId]) next[itemId].notes = notes;
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (Object.keys(selectedItems).length === 0) return;
 
     setAdding(true);
-    const success = await onAddItem({
-      userId: isGuest ? null : selectedUser,
-      guestName: isGuest ? guestName : null,
-      itemId: `ITEM-${Date.now()}`,
-      itemName,
-      priceCents,
-      quantity,
-    });
+    try {
+      for (const [itemId, { quantity, notes }] of Object.entries(selectedItems)) {
+        const menuItem = MENU_ITEMS.find(m => m.id === itemId);
+        if (!menuItem) continue;
 
-    if (success) {
-      setItemName('');
-      setPrice('');
-      setQuantity(1);
+        await onAddItem({
+          userId: isGuest ? null : selectedUser,
+          guestName: isGuest ? guestName : null,
+          itemId: menuItem.id,
+          itemName: menuItem.name,
+          priceCents: menuItem.priceCents,
+          quantity,
+          notes,
+        });
+      }
+      setSelectedItems({});
+    } finally {
+      setAdding(false);
     }
-    setAdding(false);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card p-4 space-y-3">
-      <h3 className="font-medium text-gray-900">Add Item</h3>
+    <div className="card p-4 space-y-3">
+      <h3 className="font-medium text-gray-900">Add Items</h3>
       <div className="grid grid-cols-2 gap-3">
-        <input
-          type="text"
-          value={itemName}
-          onChange={(e) => setItemName(e.target.value)}
-          placeholder="Item name"
-          className="input"
-          maxLength={255}
-        />
-        <div className="flex space-x-2">
-          <input
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="Price (e.g., 15.00)"
-            className="input flex-1"
-            step="0.01"
-            min="0.01"
-          />
-          <input
-            type="number"
-            value={quantity}
-            onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-            className="input w-16"
-            min="1"
-            max="99"
-          />
-        </div>
+        {MENU_ITEMS.map(menuItem => {
+          const selected = selectedItems[menuItem.id];
+          const qty = selected?.quantity || 0;
+          return (
+            <div key={menuItem.id} className={`relative p-3 border-2 rounded-lg transition-colors ${qty > 0 ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl">{menuItem.emoji}</span>
+                {qty > 0 && (
+                  <div className="absolute -top-2 -right-2 bg-primary-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                    {qty}
+                  </div>
+                )}
+              </div>
+              <div className="mt-1">
+                <p className="font-medium text-gray-900">{menuItem.name}</p>
+                <p className="text-sm text-gray-500">{formatCents(menuItem.priceCents)}</p>
+              </div>
+              <div className="mt-2 flex items-center space-x-2">
+                <button
+                  onClick={() => toggleItem(menuItem)}
+                  className={`flex-1 py-1.5 rounded text-sm font-medium ${qty > 0 ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  {qty > 0 ? 'Added' : 'Add'}
+                </button>
+                {qty > 0 && (
+                  <div className="flex items-center space-x-1">
+                    <button onClick={() => updateQuantity(itemId, -1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded">−</button>
+                    <span className="w-8 text-center text-sm font-medium">{qty}</span>
+                    <button onClick={() => updateQuantity(itemId, 1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded">+</button>
+                  </div>
+                )}
+              </div>
+              {qty > 0 && (
+                <input
+                  type="text"
+                  value={selected?.notes || ''}
+                  onChange={(e) => updateNotes(itemId, e.target.value)}
+                  placeholder="Notes (e.g., no pickles)"
+                  className="mt-2 input text-xs"
+                  maxLength={100}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
-      <button type="submit" disabled={adding || !itemName || !price} className="btn-primary w-full">
-        {adding ? 'Adding...' : 'Add Item'}
-      </button>
-    </form>
+      {Object.keys(selectedItems).length > 0 && (
+        <button onClick={handleSubmit} disabled={adding} className="btn-primary w-full py-2">
+          {adding ? 'Adding...' : `Add ${Object.values(selectedItems).reduce((a, b) => a + b.quantity, 0)} Item(s)`}
+        </button>
+      )}
+    </div>
   );
 }
 
