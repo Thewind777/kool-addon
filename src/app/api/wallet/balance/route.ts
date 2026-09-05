@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const balanceQuerySchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.string().min(1),
 });
 
 export async function GET(request: NextRequest) {

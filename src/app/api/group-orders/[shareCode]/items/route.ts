@@ -6,7 +6,7 @@ import { addItemToGroupOrder } from '@/lib/group-order';
 import { z } from 'zod';
 
 const addItemSchema = z.object({
-  userId: z.string().uuid().optional(),
+  userId: z.string().min(1).optional(),
   guestName: z.string().min(1).max(100).optional(),
   itemId: z.string().min(1).max(100),
   itemName: z.string().min(1).max(255),

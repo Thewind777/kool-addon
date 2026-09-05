@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const transactionsQuerySchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.string().min(1),
   limit: z.number().int().positive().max(100).default(20),
 });
 

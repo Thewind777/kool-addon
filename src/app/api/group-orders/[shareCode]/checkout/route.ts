@@ -5,7 +5,7 @@ import { lockGroupOrderForCheckout, processGroupOrderPayment, getParticipantBrea
 import { z } from 'zod';
 
 const checkoutSchema = z.object({
-  hostUserId: z.string().uuid(),
+  hostUserId: z.string().min(1),
   action: z.enum(['lock', 'pay']),
 });
 
