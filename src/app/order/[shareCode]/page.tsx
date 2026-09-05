@@ -45,13 +45,63 @@ const USERS = [
   { id: 'user-sarah-003', name: 'Sarah' },
 ];
 
-// Predefined menu items
+{/* Predefined menu items with customization options */}
 const MENU_ITEMS = [
-  { id: 'burger', name: 'Burger', priceCents: 1500, emoji: '🍔' },
-  { id: 'pizza', name: 'Pizza', priceCents: 2000, emoji: '🍕' },
-  { id: 'kebab', name: 'Kebab', priceCents: 1800, emoji: '🥙' },
-  { id: 'drink', name: 'Drink', priceCents: 500, emoji: '🥤' },
+  { 
+    id: 'burger', 
+    name: 'Burger', 
+    priceCents: 1500, 
+    emoji: '🍔',
+    options: [
+      { id: 'no_cheese', label: 'No cheese', priceCents: 0 },
+      { id: 'no_pickles', label: 'No pickles', priceCents: 0 },
+      { id: 'extra_cheese', label: 'Extra cheese', priceCents: 100 },
+      { id: 'bacon', label: 'Add bacon', priceCents: 200 },
+    ]
+  },
+  { 
+    id: 'pizza', 
+    name: 'Pizza', 
+    priceCents: 2000, 
+    emoji: '🍕',
+    options: [
+      { id: 'no_cheese', label: 'No cheese', priceCents: 0 },
+      { id: 'extra_cheese', label: 'Extra cheese', priceCents: 150 },
+      { id: 'pepperoni', label: 'Add pepperoni', priceCents: 200 },
+      { id: 'mushrooms', label: 'Add mushrooms', priceCents: 100 },
+    ]
+  },
+  { 
+    id: 'kebab', 
+    name: 'Kebab', 
+    priceCents: 1800, 
+    emoji: '🥙',
+    options: [
+      { id: 'no_onions', label: 'No onions', priceCents: 0 },
+      { id: 'no_sauce', label: 'No sauce', priceCents: 0 },
+      { id: 'extra_meat', label: 'Extra meat', priceCents: 300 },
+      { id: 'spicy', label: 'Spicy', priceCents: 0 },
+    ]
+  },
+  { 
+    id: 'drink', 
+    name: 'Drink', 
+    priceCents: 500, 
+    emoji: '🥤',
+    options: [
+      { id: 'coke', label: 'Coke', priceCents: 0 },
+      { id: 'sprite', label: 'Sprite', priceCents: 0 },
+      { id: 'water', label: 'Water', priceCents: 0 },
+      { id: 'no_ice', label: 'No ice', priceCents: 0 },
+    ]
+  },
 ];
+
+interface SelectedItem {
+  quantity: number;
+  notes: string;
+  options: string[];
+}
 
 export default function GroupOrderPage() {
   const params = useParams();
@@ -448,7 +498,7 @@ function AddItemForm({
   guestName: string;
   selectedUser: string;
 }) {
-  const [selectedItems, setSelectedItems] = useState<Record<string, { quantity: number; notes: string }>>({});
+  const [selectedItems, setSelectedItems] = useState<Record<string, SelectedItem>>({});
   const [adding, setAdding] = useState(false);
 
   const toggleItem = (menuItem: typeof MENU_ITEMS[0]) => {
@@ -461,7 +511,7 @@ function AddItemForm({
           delete next[menuItem.id];
         }
       } else {
-        next[menuItem.id] = { quantity: 1, notes: '' };
+        next[menuItem.id] = { quantity: 1, notes: '', options: [] };
       }
       return next;
     });
@@ -484,23 +534,51 @@ function AddItemForm({
     });
   };
 
+  const toggleOption = (itemId: string, optionId: string) => {
+    setSelectedItems(prev => {
+      const next = { ...prev };
+      if (!next[itemId]) return next;
+      const opts = next[itemId].options;
+      next[itemId].options = opts.includes(optionId) 
+        ? opts.filter(o => o !== optionId)
+        : [...opts, optionId];
+      return next;
+    });
+  };
+
   const handleSubmit = async () => {
     if (Object.keys(selectedItems).length === 0) return;
 
     setAdding(true);
     try {
-      for (const [itemId, { quantity, notes }] of Object.entries(selectedItems)) {
+      for (const [itemId, { quantity, notes, options }] of Object.entries(selectedItems)) {
         const menuItem = MENU_ITEMS.find(m => m.id === itemId);
         if (!menuItem) continue;
+
+        // Calculate extra price from options
+        let extraPrice = 0;
+        if (menuItem.options) {
+          extraPrice = menuItem.options
+            .filter(opt => options.includes(opt.id))
+            .reduce((sum, opt) => sum + opt.priceCents, 0);
+        }
+
+        const finalPrice = menuItem.priceCents + extraPrice;
+        const optionLabels = menuItem.options
+          ?.filter(opt => options.includes(opt.id))
+          .map(opt => opt.label)
+          .join(', ') || '';
+
+        const combinedNotes = [notes, optionLabels].filter(Boolean).join('; ');
 
         await onAddItem({
           userId: isGuest ? null : selectedUser,
           guestName: isGuest ? guestName : null,
           itemId: menuItem.id,
           itemName: menuItem.name,
-          priceCents: menuItem.priceCents,
+          priceCents: finalPrice,
           quantity,
-          notes,
+          notes: combinedNotes,
         });
       }
       setSelectedItems({});
@@ -539,21 +617,43 @@ function AddItemForm({
                 </button>
                 {qty > 0 && (
                   <div className="flex items-center space-x-1">
-                    <button onClick={() => updateQuantity(itemId, -1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded">−</button>
+                    <button onClick={() => updateQuantity(menuItem.id, -1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded">−</button>
                     <span className="w-8 text-center text-sm font-medium">{qty}</span>
-                    <button onClick={() => updateQuantity(itemId, 1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded">+</button>
+                    <button onClick={() => updateQuantity(menuItem.id, 1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded">+</button>
                   </div>
                 )}
               </div>
               {qty > 0 && (
-                <input
-                  type="text"
-                  value={selected?.notes || ''}
-                  onChange={(e) => updateNotes(itemId, e.target.value)}
-                  placeholder="Notes (e.g., no pickles)"
-                  className="mt-2 input text-xs"
-                  maxLength={100}
-                />
+                <div className="mt-2 space-y-2">
+                  <input
+                    type="text"
+                    value={selected?.notes || ''}
+                    onChange={(e) => updateNotes(menuItem.id, e.target.value)}
+                    placeholder="Notes (e.g., no pickles)"
+                    className="input text-xs"
+                    maxLength={100}
+                  />
+                  {menuItem.options && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-gray-700">Options:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {menuItem.options.map(opt => (
+                          <label key={opt.id} className="flex items-center space-x-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selected?.options.includes(opt.id)}
+                              onChange={() => toggleOption(menuItem.id, opt.id)}
+                              className="h-3 w-3 text-primary-600 border-gray-300 rounded"
+                            />
+                            <span className="text-xs text-gray-700">
+                              {opt.label}{opt.priceCents > 0 && ` (+${formatCents(opt.priceCents)})`}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           );
