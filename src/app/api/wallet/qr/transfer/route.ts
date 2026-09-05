@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
 import { verifyQRToken } from '@/lib/utils';
 import { executeWalletTransfer } from '@/lib/wallet';
 import { z } from 'zod';

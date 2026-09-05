@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { lockGroupOrderForCheckout, processGroupOrderPayment, getParticipantBreakdown } from '@/lib/group-order';
 import { z } from 'zod';
 

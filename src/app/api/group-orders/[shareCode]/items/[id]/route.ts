@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
 import { removeItemFromGroupOrder } from '@/lib/group-order';
 
 export async function DELETE(

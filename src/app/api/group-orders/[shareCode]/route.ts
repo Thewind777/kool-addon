@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
 import { getGroupOrderByShareCode, getParticipantBreakdown } from '@/lib/group-order';
 
 export async function GET(

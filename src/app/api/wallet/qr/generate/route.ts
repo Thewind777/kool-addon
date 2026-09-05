@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
 import { generateQRToken } from '@/lib/utils';
 import { getWalletBalance } from '@/lib/wallet';
 import { z } from 'zod';
