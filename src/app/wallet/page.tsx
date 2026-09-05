@@ -125,46 +125,51 @@ export default function WalletPage() {
   };
 
   // Start QR Scanner
-  const startScanner = () => {
+  const startScanner = async () => {
     if (!scannerContainerRef.current) return;
 
-    const scanner = new Html5QrcodeScanner(
-      'qr-scanner',
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true,
+    // Check for HTTPS (required for camera)
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      alert('Camera requires HTTPS. Please use the manual token input below, or access via HTTPS.');
+      return;
+    }
+
+    try {
+      const scanner = new Html5Qrcode('qr-scanner');
+      
+      await scanner.start(
+        { facingMode: 'environment' }, // Use back camera
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
         },
-      },
-      false
-    );
+        (decodedText: string) => {
+          // Stop scanner after successful scan
+          setScanning(false);
+          setScanResult(decodedText);
+          scanner.stop().catch(console.error);
+        },
+        (error: string) => {
+          // Ignore scan errors - they're frequent and noisy
+        }
+      );
 
-    scannerRef.current = scanner;
-
-    scanner.render(
-      async (decodedText: string) => {
-        // Stop scanner after successful scan
-        setScanning(false);
-        setScanResult(decodedText);
-        await scanner.clear();
-      },
-      (error: string) => {
-        // Ignore scan errors - they're frequent and noisy
-      }
-    );
-
-    setScanning(true);
+      scannerRef.current = scanner;
+      setScanning(true);
+    } catch (err) {
+      console.error('Failed to start scanner:', err);
+      alert('Could not access camera. Please ensure you\'re on HTTPS and grant camera permissions, or use manual token input.');
+    }
   };
 
   // Stop QR Scanner
   const stopScanner = async () => {
     if (scannerRef.current) {
       try {
-        await scannerRef.current.clear();
+        await scannerRef.current.stop();
       } catch (err) {
-        console.error('Error clearing scanner:', err);
+        console.error('Error stopping scanner:', err);
       }
       scannerRef.current = null;
     }
