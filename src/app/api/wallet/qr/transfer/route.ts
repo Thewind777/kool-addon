@@ -7,9 +7,9 @@ import { executeWalletTransfer } from '@/lib/wallet';
 import { z } from 'zod';
 
 const transferSchema = z.object({
-  senderId: z.string().uuid(),
+  senderId: z.string().min(1),
   token: z.string().min(1),
-  pin: z.string().optional(), // Optional PIN for extra security
+  pin: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {

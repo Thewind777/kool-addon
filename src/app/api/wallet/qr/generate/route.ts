@@ -7,7 +7,7 @@ import { getWalletBalance } from '@/lib/wallet';
 import { z } from 'zod';
 
 const generateQRSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.string().min(1),
   userName: z.string().min(1).max(100),
   requestedAmountCents: z.number().int().positive().optional(),
   expirySeconds: z.number().int().positive().max(300).default(60),

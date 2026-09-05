@@ -6,7 +6,7 @@ import { createGroupOrder } from '@/lib/group-order';
 import { z } from 'zod';
 
 const createOrderSchema = z.object({
-  hostUserId: z.string().uuid(),
+  hostUserId: z.string().min(1),
   paymentMode: z.enum(['HOST_PAYS_ALL', 'SPLIT_WALLETS']).default('HOST_PAYS_ALL'),
 });
 
