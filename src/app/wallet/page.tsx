@@ -5,9 +5,9 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { formatCents } from '@/lib/utils';
 
 const USERS = [
-  { id: 'feras-uuid', name: 'Feras' },
-  { id: 'ahmed-uuid', name: 'Ahmed' },
-  { id: 'sarah-uuid', name: 'Sarah' },
+  { id: 'user-feras-001', name: 'Feras' },
+  { id: 'user-ahmed-002', name: 'Ahmed' },
+  { id: 'user-sarah-003', name: 'Sarah' },
 ];
 
 interface WalletTransaction {

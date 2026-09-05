@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { createGroupOrder } from '@/lib/group-order';
 
 const USERS = [
-  { id: 'feras-uuid', name: 'Feras' },
-  { id: 'ahmed-uuid', name: 'Ahmed' },
-  { id: 'sarah-uuid', name: 'Sarah' },
+  { id: 'user-feras-001', name: 'Feras' },
+  { id: 'user-ahmed-002', name: 'Ahmed' },
+  { id: 'user-sarah-003', name: 'Sarah' },
 ];
 
 export default function CreateOrderPage() {
